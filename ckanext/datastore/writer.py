@@ -175,6 +175,6 @@ def get_xml_element(element_name):
         Capitalize every word and remove special characters
        '''
     if unicode(element_name).isnumeric():
-        return  u'_' + unicode(element_name)
+        return u'_' + unicode(element_name)
     first, rest = element_name.split(u' ')[0], element_name.split(u' ')[1:]
     return first + u''.join(w.capitalize().strip(u'!@#$%&') for w in rest)
