@@ -161,9 +161,19 @@ class XMLWriter(object):
             root.attrib[u'_id'] = unicode(row[0])
             row = row[1:]
         for k, v in zip(self.columns, row):
+            k = self.getXmlElement(k)
+            if unicode(k).isnumeric():
+                k = '_'+ unicode(k)
             if v is None:
                 SubElement(root, k).attrib[u'xsi:nil'] = u'true'
                 continue
             SubElement(root, k).text = unicode(v)
         ElementTree(root).write(self.response, encoding=u'utf-8')
         self.response.write(b'\n')
+
+    def getXmlElement(self, element_name):
+        '''Return element name according XML naming standards
+           Capitalize every word and remove special characters
+        '''
+        first, rest = element_name.split(' ')[0], element_name.split(' ')[1:]
+        return first + ''.join(word.capitalize().strip('!@#$%&') for word in rest )
