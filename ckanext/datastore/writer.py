@@ -162,8 +162,6 @@ class XMLWriter(object):
             row = row[1:]
         for k, v in zip(self.columns, row):
             k = get_xml_element(k)
-            if unicode(k).isnumeric():
-                k = u'_' + unicode(k)
             if v is None:
                 SubElement(root, k).attrib[u'xsi:nil'] = u'true'
                 continue
@@ -176,5 +174,7 @@ def get_xml_element(element_name):
     u'''Return element name according XML naming standards
         Capitalize every word and remove special characters
        '''
+    if unicode(element_name).isnumeric():
+        return  u'_' + unicode(element_name)
     first, rest = element_name.split(u' ')[0], element_name.split(u' ')[1:]
     return first + u''.join(w.capitalize().strip(u'!@#$%&') for w in rest)
