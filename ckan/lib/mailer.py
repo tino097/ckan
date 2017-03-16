@@ -145,7 +145,8 @@ def get_invite_body(user, group_dict=None, role=None):
 
 def get_reset_link(user):
     return urljoin(config.get('site_url'),
-                   h.url_for(controller='user',
+                   h.url_for(qualified=True,
+                             controller='user',
                              action='perform_reset',
                              id=user.id,
                              key=user.reset_key))
