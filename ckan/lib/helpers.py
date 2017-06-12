@@ -676,7 +676,6 @@ def nav_link(text, *args, **kwargs):
     :param condition: if ``False`` then no link is returned
 
     '''
-    import pdb; pdb.set_trace()  # breakpoint fb73b4f1 //
     if len(args) > 1:
         raise Exception('Too many unnamed parameters supplied')
     if args:
