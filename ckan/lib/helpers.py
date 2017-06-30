@@ -19,7 +19,7 @@ import urlparse
 from urllib import urlencode
 
 from paste.deploy import converters
-from webhelpers.html import escape, HTML, literal, tags, tools
+from webhelpers.html import HTML, literal, tags, tools
 from webhelpers import paginate
 import webhelpers.text as whtext
 import webhelpers.date as date
@@ -45,6 +45,7 @@ import ckan.plugins as p
 import ckan
 
 from ckan.common import _, ungettext, c, request, session, json
+from markupsafe import escape
 
 log = logging.getLogger(__name__)
 
