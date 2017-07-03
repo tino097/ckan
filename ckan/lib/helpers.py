@@ -19,12 +19,12 @@ import urlparse
 from urllib import urlencode
 
 from paste.deploy import converters
-from webhelpers.html import HTML, literal, tags, tools
+from webhelpers.html import HTML, tags, tools
 from webhelpers import paginate
 import webhelpers.text as whtext
 import webhelpers.date as date
 from markdown import markdown
-from bleach import clean as clean_html, ALLOWED_TAGS, ALLOWED_ATTRIBUTES
+from bleach import clean as clean_html, ALLOWED_TAGS, ALLOWED_ATTRIBUTES, linkify
 from pylons import url as _pylons_default_url
 from ckan.common import config, is_flask_request
 from flask import redirect as _flask_redirect
@@ -45,7 +45,7 @@ import ckan.plugins as p
 import ckan
 
 from ckan.common import _, ungettext, c, request, session, json
-from markupsafe import escape
+from markupsafe import escape, Markup
 
 log = logging.getLogger(__name__)
 
@@ -546,9 +546,9 @@ def _link_to(text, *args, **kwargs):
         ''' Update link text to add a icon or span if specified in the
         kwargs '''
         if kwargs.pop('inner_span', None):
-            text = literal('<span>') + text + literal('</span>')
+            text = Markup('<span>') + text + Markup('</span>')
         if icon:
-            text = literal('<i class="fa fa-%s"></i> ' % icon) + text
+            text = Markup('<i class="fa fa-%s"></i> ' % icon) + text
         return text
 
     icon = kwargs.pop('icon', None)
@@ -717,8 +717,8 @@ def _make_menu_item(menu_item, title, **kw):
                             % (menu_item, need))
     link = _link_to(title, menu_item, suppress_active_class=True, **item)
     if active:
-        return literal('<li class="active">') + link + literal('</li>')
-    return literal('<li>') + link + literal('</li>')
+        return Markup('<li class="active">') + link + Markup('</li>')
+    return Markup('<li>') + link + Markup('</li>')
 
 
 @core_helper
@@ -964,9 +964,9 @@ def markdown_extract(text, extract_length=190):
         return ''
     plain = RE_MD_HTML_TAGS.sub('', markdown(text))
     if not extract_length or len(plain) < extract_length:
-        return literal(plain)
+        return Markup(plain)
 
-    return literal(
+    return Markup(
         unicode(
             whtext.truncate(
                 plain,
@@ -988,7 +988,7 @@ def icon_html(url, alt=None, inline=True):
     classes = ''
     if inline:
         classes += 'inline-icon '
-    return literal(('<img src="%s" height="16px" width="16px" alt="%s" ' +
+    return Markup(('<img src="%s" height="16px" width="16px" alt="%s" ' +
                     'class="%s" /> ') % (url, alt, classes))
 
 
@@ -1044,7 +1044,7 @@ def dict_list_reduce(list_, key, unique=True):
 
 @core_helper
 def linked_gravatar(email_hash, size=100, default=None):
-    return literal(
+    return Markup(
         '<a href="https://gravatar.com/" target="_blank" ' +
         'title="%s" alt="">' % _('Update your avatar at gravatar.com') +
         '%s</a>' % gravatar(email_hash, size, default)
@@ -1064,7 +1064,7 @@ def gravatar(email_hash, size=100, default=None):
         # treat the default as a url
         default = urllib.quote(default, safe='')
 
-    return literal('''<img src="//gravatar.com/avatar/%s?s=%d&amp;d=%s"
+    return Markup('''<img src="//gravatar.com/avatar/%s?s=%d&amp;d=%s"
         class="gravatar" width="%s" height="%s" alt="Gravatar" />'''
                    % (email_hash, size, default, size, size)
                    )
@@ -1437,7 +1437,7 @@ def activity_div(template, activity, actor, object=None, target=None):
     template = template.format(actor=actor, date=date,
                                object=object, target=target)
     template = '<div class="activity">%s %s</div>' % (template, date)
-    return literal(template)
+    return Markup(template)
 
 
 @core_helper
@@ -1657,7 +1657,7 @@ def urls_for_resource(resource):
 @core_helper
 def debug_inspect(arg):
     ''' Output pprint.pformat view of supplied arg '''
-    return literal('<pre>') + pprint.pformat(arg) + literal('</pre>')
+    return Markup('<pre>') + pprint.pformat(arg) + Markup('</pre>')
 
 
 @core_helper
@@ -1905,7 +1905,7 @@ def render_markdown(data, auto_link=True, allow_html=False):
     # from it
     if auto_link:
         data = html_auto_link(data)
-    return literal(data)
+    return Markup(data)
 
 
 @core_helper
@@ -2008,7 +2008,7 @@ def rendered_resource_view(resource_view, resource, package, embed=False):
         template = "package/snippets/resource_view_embed.html"
 
     import ckan.lib.base as base
-    return literal(base.render(template, extra_vars=data_dict))
+    return Markup(base.render(template, extra_vars=data_dict))
 
 
 @core_helper
@@ -2117,11 +2117,11 @@ def SI_number_span(number):
     ''' outputs a span with the number in SI unit eg 14700 -> 14.7k '''
     number = int(number)
     if number < 1000:
-        output = literal('<span>')
+        output = Markup('<span>')
     else:
-        output = literal('<span title="' + formatters.localised_number(number)
+        output = Markup('<span title="' + formatters.localised_number(number)
                          + '">')
-    return output + formatters.localised_SI_number(number) + literal('</span>')
+    return output + formatters.localised_SI_number(number) + Markup('</span>')
 
 
 # add some formatter functions
