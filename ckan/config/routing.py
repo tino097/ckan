@@ -254,14 +254,14 @@ def make_map():
                   action='resource_view')
 
     # group
-    map.redirect('/groups', '/group')
-    map.redirect('/groups/{url:.*}', '/group/{url}')
+    # map.redirect('/groups', '/group')
+    # map.redirect('/groups/{url:.*}', '/group/{url}')
 
     # These named routes are used for custom group forms which will use the
     # names below based on the group.type ('group' is the default type)
     with SubMapper(map, controller='group') as m:
-        m.connect('group_index', '/group', action='index',
-                  highlight_actions='index search')
+        # m.connect('group_index', '/group', action='index',
+                 # highlight_actions='index search')
         m.connect('group_list', '/group/list', action='list')
         m.connect('group_new', '/group/new', action='new')
         m.connect('group_action', '/group/{action}/{id}',
@@ -290,7 +290,7 @@ def make_map():
 
     # organizations these basically end up being the same as groups
     with SubMapper(map, controller='organization') as m:
-        m.connect('organizations_index', '/organization', action='index')
+        # m.connect('organizations_index', '/organization', action='index')
         m.connect('/organization/list', action='list')
         m.connect('/organization/new', action='new')
         m.connect('/organization/{action}/{id}',
@@ -315,8 +315,8 @@ def make_map():
         m.connect('organization_bulk_process',
                   '/organization/bulk_process/{id}',
                   action='bulk_process', ckan_icon='sitemap')
-    lib_plugins.register_package_plugins(map)
-    lib_plugins.register_group_plugins(map)
+    # lib_plugins.register_package_plugins(map)
+    # lib_plugins.register_group_plugins(map)
 
     # tags
     map.redirect('/tags', '/tag')
