@@ -1261,7 +1261,8 @@ def _group_or_org_show(context, data_dict, is_org=False):
             'type': 'show',
             'api': 'api_version' in context,
             'context': context})
-    except AttributeError:
+    except AttributeError as e:
+        print e.message
         schema = group_plugin.db_to_form_schema()
 
     if include_followers:

@@ -17,12 +17,12 @@ import ckan.lib.plugins
 import ckan.plugins as plugins
 from ckan.common import OrderedDict, c, config, request, _
 from flask import Blueprint
+import ckan.lib.plugins as lib_plugins
 
 log = logging.getLogger(__name__)
 
 group = Blueprint('group', __name__, url_prefix=None)
 group_type = None
-
 
 @group.before_request
 def before_request():
@@ -55,5 +55,11 @@ def index():
     print 'hi'
 
 
+def read(id):
+    print 'hi'
+
+
 # Routing
 group.add_url_rule(u'/group', methods=[u'GET'], view_func=index)
+group.add_url_rule(u'/organization', methods=[u'GET'], view_func=index)
+group.add_url_rule(u'/organization/read', methods=[u'GET'], view_func=read)

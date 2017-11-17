@@ -134,6 +134,7 @@ def register_group_plugins(map):
     registered IGroupForm instances. If it's called more than once an
     exception will be raised.
     """
+    import pdb; pdb.set_trace()
     global _default_group_plugin
 
     # This function should have not effect if called more than once.
