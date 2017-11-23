@@ -31,9 +31,8 @@ parse_params = logic.parse_params
 
 log = logging.getLogger(__name__)
 
-group = Blueprint('group_org', __name__, url_prefix=u'/<group_type>')
-# organization = Blueprint('organization', __name__, url_prefix=u'/organization')
-group_type = None
+group = Blueprint('group', __name__, url_prefix=u'/group')
+organization = Blueprint('organization', __name__, url_prefix=u'/organization')
 
 lookup_group_plugin = ckan.lib.plugins.lookup_group_plugin
 lookup_group_controller = ckan.lib.plugins.lookup_group_controller
@@ -150,13 +149,14 @@ def _guess_group_type(expecting_name=False):
 
 
 @group.url_value_preprocessor
+@organization.url_value_preprocessor
 def guess_group_type(endpoint, values):
-    print endpoint
-    print values
+    _group_type = endpoint.split(u'.')[0]
+    return _group_type
 
 
-def index(group_type='group'):
-    group_type = _guess_group_type() or 'group'
+def index():
+    group_type = _guess_group_type()
     page = h.get_page_number(request.params) or 1
     items_per_page = 21
 
@@ -216,21 +216,110 @@ def index(group_type='group'):
         )
 
     c.page.items = page_results
-    base.render(_index_template(group_type),
-                extra_vars={'group_type': group_type})
+    templ_name = _index_template(group_type)
+    vars = dict(group_type=group_type)
+    return base.render(templ_name, extra_vars=vars)
 
 
-def read(id):
+def read(id=None):
     print id
 
 
-def new():
-    print 'hi'
+def new(data=None, errors=None, error_summary=None):
+    if data and 'type' in data:
+        group_type = data['type']
+    else:
+        group_type = _guess_group_type(True)
+    if data:
+        data['type'] = group_type
+
+    context = {
+        'model': model,
+        'session': model.Session,
+        'user': c.user,
+        'save': 'save' in request.params,
+        'parent': request.params.get('parent', None)
+    }
+    try:
+        _check_access('group_create', context)
+    except NotAuthorized:
+        base.abort(403, _('Unauthorized to create a group'))
+
+    if context['save'] and not data:
+        return _save_new(context, group_type)
+
+    data = data or {}
+    if not data.get('image_url', '').startswith('http'):
+        data.pop('image_url', None)
+
+    errors = errors or {}
+    error_summary = error_summary or {}
+    vars = {
+        'data': data,
+        'errors': errors,
+        'error_summary': error_summary,
+        'action': 'new',
+        'group_type': group_type
+    }
+
+    _setup_template_variables(context, data, group_type=group_type)
+    # c.form = render(_group_form(group_type=group_type), extra_vars=vars)
+    return base.render(_new_template(group_type), extra_vars={'group_type': group_type})
+
+
+def edit(id, data=None, errors=None, error_summary=None):
+    group_type = self._ensure_controller_matches_group_type(id.split('@')[0])
+
+    context = {
+        'model': model,
+        'session': model.Session,
+        'user': c.user,
+        'save': 'save' in request.params,
+        'for_edit': True,
+        'parent': request.params.get('parent', None)
+    }
+    data_dict = {'id': id, 'include_datasets': False}
+
+    if context['save'] and not data:
+        return self._save_edit(id, context)
+
+    try:
+        data_dict['include_datasets'] = False
+        old_data = self._action('group_show')(context, data_dict)
+        c.grouptitle = old_data.get('title')
+        c.groupname = old_data.get('name')
+        data = data or old_data
+    except (NotFound, NotAuthorized):
+        abort(404, _('Group not found'))
+
+    group = context.get("group")
+    c.group = group
+    c.group_dict = self._action('group_show')(context, data_dict)
+
+    try:
+        self._check_access('group_update', context)
+    except NotAuthorized:
+        abort(403, _('User %r not authorized to edit %s') % (c.user, id))
+
+    errors = errors or {}
+    vars = {
+        'data': data,
+        'errors': errors,
+        'error_summary': error_summary,
+        'action': 'edit',
+        'group_type': group_type
+    }
+
+    self._setup_template_variables(context, data, group_type=group_type)
+    c.form = render(self._group_form(group_type), extra_vars=vars)
+    return render(
+        self._edit_template(c.group.type),
+        extra_vars={'group_type': group_type})
 
 
 # Routing
 group.add_url_rule(u'/', methods=[u'GET'], view_func=index)
-# group.add_url_rule(u'/<group-type>', methods=[u'GET'], view_func=index)
-# group.add_url_rule(u'/organization/read', methods=[u'GET'], view_func=read)
+group.add_url_rule(u'/new', methods=[u'GET'], view_func=new)
+group.add_url_rule(u'/read', methods=[u'GET'], view_func=read)
 
-# organization.add_url_rule(u'/', methods=[u'GET'], view_func=index)
+organization.add_url_rule(u'/', methods=[u'GET'], view_func=index)

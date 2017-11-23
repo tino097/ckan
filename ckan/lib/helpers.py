@@ -751,7 +751,6 @@ def nav_link(text, *args, **kwargs):
 
 
 def nav_link_flask(text, *args, **kwargs):
-    import pdb; pdb.set_trace()
     if len(args) > 1:
         raise Exception('Too many unnamed parameters supplied')
     blueprint, endpoint = request.url_rule.endpoint.split('.')
@@ -913,7 +912,6 @@ def _make_menu_item(menu_item, title, **kw):
     item.update(kw)
     active = _link_active(item)
     needed = item.pop('needed')
-    import pdb; pdb.set_trace()
     for need in needed:
         if need not in kw:
             raise Exception('menu item `%s` need parameter `%s`'

@@ -3,7 +3,7 @@
 {% block subtitle %}{{ _('Groups') }}{% endblock %}
 
 {% block breadcrumb_content %}
-  <li class="active">{% link_for _('Groups'), 'group_org.index' %}</li>
+  <li class="active">{% link_for _('Groups'), 'group.index' %}</li>
 {% endblock %}
 
 {% block page_header %}{% endblock %}
@@ -28,7 +28,7 @@
       <p class="empty">
         {{ _('There are currently no groups for this site') }}.
         {% if h.check_access('group_create') %}
-          {% link_for _('How about creating one?'), 'group_org.new' %}</a>.
+          {% link_for _('How about creating one?'), 'group.new' %}</a>.
         {% endif %}
       </p>
     {% endif %}
