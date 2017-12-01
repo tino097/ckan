@@ -221,11 +221,189 @@ def index():
     return base.render(templ_name, extra_vars=vars)
 
 
-def read(id=None):
-    print id
+def read(id=None, limit=20):
+    group_type = _guess_group_type()
+
+    context = {
+        'model': model,
+        'session': model.Session,
+        'user': c.user,
+        'schema': _db_to_form_schema(group_type=group_type),
+        'for_view': True
+    }
+    data_dict = {'id': id, 'type': group_type}
+
+    # unicode format (decoded from utf8)
+    c.q = request.params.get('q', '')
+
+    try:
+        # Do not query for the group datasets when dictizing, as they will
+        # be ignored and get requested on the controller anyway
+        data_dict['include_datasets'] = False
+        import pdb; pdb.set_trace()
+        c.group_dict = _action('group_show')(context, data_dict)
+        c.group = context['group']
+    except (NotFound, NotAuthorized):
+        base.abort(404, _('Group not found'))
+
+    _read(id, limit, group_type)
+    return base.render(
+        _read_template(c.group_dict['type']),
+        extra_vars={'group_type': group_type})
+
+
+def _read(id, limit, group_type):
+    ''' This is common code used by both read and bulk_process'''
+    context = {
+        'model': model,
+        'session': model.Session,
+        'user': c.user,
+        'schema': _db_to_form_schema(group_type=group_type),
+        'for_view': True,
+        'extras_as_string': True
+    }
+
+    q = c.q = request.params.get('q', '')
+    # Search within group
+    if c.group_dict.get('is_organization'):
+        q += ' owner_org:"%s"' % c.group_dict.get('id')
+    else:
+        q += ' groups:"%s"' % c.group_dict.get('name')
+
+    c.description_formatted = \
+        h.render_markdown(c.group_dict.get('description'))
+
+    context['return_query'] = True
+
+    page = h.get_page_number(request.params)
+
+    # most search operations should reset the page counter:
+    params_nopage = [(k, v) for k, v in request.params.items() if k != 'page']
+    sort_by = request.params.get('sort', None)
+
+    def search_url(params):
+        controller = lookup_group_controller(group_type)
+        action = 'bulk_process' if c.action == 'bulk_process' else 'read'
+        url = h.url_for(controller=controller, action=action, id=id)
+        params = [(k, v.encode('utf-8')
+                   if isinstance(v, basestring) else str(v))
+                  for k, v in params]
+        return url + u'?' + urlencode(params)
+
+    def drill_down_url(**by):
+        return h.add_url_param(
+            alternative_url=None,
+            controller='group',
+            action='read',
+            extras=dict(id=c.group_dict.get('name')),
+            new_params=by)
+
+    c.drill_down_url = drill_down_url
+
+    def remove_field(key, value=None, replace=None):
+        controller = lookup_group_controller(group_type)
+        return h.remove_url_param(
+            key,
+            value=value,
+            replace=replace,
+            controller=controller,
+            action='read',
+            extras=dict(id=c.group_dict.get('name')))
+
+    c.remove_field = remove_field
+
+    def pager_url(q=None, page=None):
+        params = list(params_nopage)
+        params.append(('page', page))
+        return search_url(params)
+
+    try:
+        c.fields = []
+        c.fields_grouped = {}
+        search_extras = {}
+        for (param, value) in request.params.items():
+            if param not in ['q', 'page', 'sort'] \
+                    and len(value) and not param.startswith('_'):
+                if not param.startswith('ext_'):
+                    c.fields.append((param, value))
+                    q += ' %s: "%s"' % (param, value)
+                    if param not in c.fields_grouped:
+                        c.fields_grouped[param] = [value]
+                    else:
+                        c.fields_grouped[param].append(value)
+                else:
+                    search_extras[param] = value
+
+        facets = OrderedDict()
+
+        default_facet_titles = {
+            'organization': _('Organizations'),
+            'groups': _('Groups'),
+            'tags': _('Tags'),
+            'res_format': _('Formats'),
+            'license_id': _('Licenses')
+        }
+
+        for facet in h.facets():
+            if facet in default_facet_titles:
+                facets[facet] = default_facet_titles[facet]
+            else:
+                facets[facet] = facet
+
+        # Facet titles
+        _update_facet_titles(facets, group_type)
+
+        c.facet_titles = facets
+
+        data_dict = {
+            'q': q,
+            'fq': '',
+            'include_private': True,
+            'facet.field': facets.keys(),
+            'rows': limit,
+            'sort': sort_by,
+            'start': (page - 1) * limit,
+            'extras': search_extras
+        }
+
+        context_ = dict((k, v) for (k, v) in context.items() if k != 'schema')
+        query = get_action('package_search')(context_, data_dict)
+
+        c.page = h.Page(
+            collection=query['results'],
+            page=page,
+            url=pager_url,
+            item_count=query['count'],
+            items_per_page=limit)
+
+        c.group_dict['package_count'] = query['count']
+
+        c.search_facets = query['search_facets']
+        c.search_facets_limits = {}
+        for facet in c.search_facets.keys():
+            limit = int(
+                request.params.get('_%s_limit' % facet,
+                                   config.get('search.facets.default', 10)))
+            c.search_facets_limits[facet] = limit
+        c.page.items = query['results']
+
+        c.sort_by_selected = sort_by
+
+    except search.SearchError, se:
+        log.error('Group search error: %r', se.args)
+        c.query_error = True
+        c.page = h.Page(collection=[])
+
+    _setup_template_variables(context, {'id': id}, group_type=group_type)
+
+
+def _update_facet_titles(facets, group_type):
+    for plugin in plugins.PluginImplementations(plugins.IFacets):
+        facets = plugin.group_facets(facets, group_type, None)
 
 
 def new(data=None, errors=None, error_summary=None):
+    print 'new'
     if data and 'type' in data:
         group_type = data['type']
     else:
@@ -263,13 +441,13 @@ def new(data=None, errors=None, error_summary=None):
     }
 
     _setup_template_variables(context, data, group_type=group_type)
-    # c.form = render(_group_form(group_type=group_type), extra_vars=vars)
-    return base.render(_new_template(group_type), extra_vars={'group_type': group_type})
+    c.form = base.render(_group_form(group_type=group_type), extra_vars=vars)
+    return base.render(_new_template(group_type),
+                       extra_vars={'group_type': group_type})
 
 
 def edit(id, data=None, errors=None, error_summary=None):
-    group_type = self._ensure_controller_matches_group_type(id.split('@')[0])
-
+    group_type = _guess_group_type()
     context = {
         'model': model,
         'session': model.Session,
@@ -281,25 +459,25 @@ def edit(id, data=None, errors=None, error_summary=None):
     data_dict = {'id': id, 'include_datasets': False}
 
     if context['save'] and not data:
-        return self._save_edit(id, context)
+        return _save_edit(id, context)
 
     try:
         data_dict['include_datasets'] = False
-        old_data = self._action('group_show')(context, data_dict)
+        old_data = _action('group_show')(context, data_dict)
         c.grouptitle = old_data.get('title')
         c.groupname = old_data.get('name')
         data = data or old_data
     except (NotFound, NotAuthorized):
-        abort(404, _('Group not found'))
+        base.abort(404, _('Group not found'))
 
     group = context.get("group")
     c.group = group
-    c.group_dict = self._action('group_show')(context, data_dict)
+    c.group_dict = _action('group_show')(context, data_dict)
 
     try:
-        self._check_access('group_update', context)
+        _check_access('group_update', context)
     except NotAuthorized:
-        abort(403, _('User %r not authorized to edit %s') % (c.user, id))
+        base.abort(403, _('User %r not authorized to edit %s') % (c.user, id))
 
     errors = errors or {}
     vars = {
@@ -310,16 +488,16 @@ def edit(id, data=None, errors=None, error_summary=None):
         'group_type': group_type
     }
 
-    self._setup_template_variables(context, data, group_type=group_type)
-    c.form = render(self._group_form(group_type), extra_vars=vars)
-    return render(
-        self._edit_template(c.group.type),
-        extra_vars={'group_type': group_type})
+    _setup_template_variables(context, data, group_type=group_type)
+    c.form = base.render(_group_form(group_type), extra_vars=vars)
+    return base.render(_edit_template(c.group.type),
+                       extra_vars={'group_type': group_type})
 
 
 # Routing
 group.add_url_rule(u'/', methods=[u'GET'], view_func=index)
-group.add_url_rule(u'/new', methods=[u'GET'], view_func=new)
+group.add_url_rule(u'/new', methods=[u'POST'], view_func=new)
 group.add_url_rule(u'/read', methods=[u'GET'], view_func=read)
 
 organization.add_url_rule(u'/', methods=[u'GET'], view_func=index)
+organization.add_url_rule(u'/new', methods=[u'POST'], view_func=new)
