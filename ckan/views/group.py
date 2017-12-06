@@ -138,21 +138,15 @@ def _guess_group_type(expecting_name=False):
     * this handles the case where there is a prefix on the URL
     (such as /data/organization)
     """
-    parts = [x for x in request.path.split('/') if x]
+    # parts = [x for x in request.path.split('/') if x]
 
-    idx = -1
-    if expecting_name:
-        idx = -2
+    # idx = -1
+    # if expecting_name:
+    #     idx = -2
 
-    gt = parts[idx]
-    return gt
-
-
-@group.url_value_preprocessor
-@organization.url_value_preprocessor
-def guess_group_type(endpoint, values):
-    _group_type = endpoint.split(u'.')[0]
-    return _group_type
+    # gt = parts[idx]
+    # return gt
+    return request.path.split('/')[1]
 
 
 def index():
@@ -160,9 +154,13 @@ def index():
     page = h.get_page_number(request.params) or 1
     items_per_page = 21
 
-    context = {'model': model, 'session': model.Session,
-               'user': c.user, 'for_view': True,
-               'with_private': False}
+    context = {
+        'model': model,
+        'session': model.Session,
+        'user': c.user,
+        'for_view': True,
+        'with_private': False
+    }
 
     q = c.q = request.params.get('q', '')
     sort_by = c.sort_by_selected = request.params.get('sort')
@@ -185,7 +183,7 @@ def index():
                 'sort': sort_by,
                 'type': group_type or 'group',
             }
-        global_results =  _action('group_list')(
+        global_results = _action('group_list')(
                 context, data_dict_global_results)
     except ValidationError as e:
         if e.error_dict and e.error_dict.get('message'):
@@ -240,7 +238,6 @@ def read(id=None, limit=20):
         # Do not query for the group datasets when dictizing, as they will
         # be ignored and get requested on the controller anyway
         data_dict['include_datasets'] = False
-        import pdb; pdb.set_trace()
         c.group_dict = _action('group_show')(context, data_dict)
         c.group = context['group']
     except (NotFound, NotAuthorized):
@@ -402,6 +399,18 @@ def _update_facet_titles(facets, group_type):
         facets = plugin.group_facets(facets, group_type, None)
 
 
+def _get_group_dict(id):
+    ''' returns the result of group_show action or aborts if there is a
+    problem '''
+    context = {'model': model, 'session': model.Session, 'user': c.user,
+               'for_view': True}
+    try:
+        return _action('group_show')(
+            context, {'id': id, 'include_datasets': False})
+    except (NotFound, NotAuthorized):
+        base.abort(404, _('Group not found'))
+
+
 def new(data=None, errors=None, error_summary=None):
     print 'new'
     if data and 'type' in data:
@@ -494,10 +503,45 @@ def edit(id, data=None, errors=None, error_summary=None):
                        extra_vars={'group_type': group_type})
 
 
+def activity(id, offset=0):
+    '''Render this group's public activity stream page.'''
+
+    group_type = _guess_group_type()
+    context = {
+        'model': model,
+        'session': model.Session,
+        'user': c.user,
+        'for_view': True
+    }
+    try:
+        c.group_dict = _get_group_dict(id)
+    except (NotFound, NotAuthorized):
+        base.abort(404, _('Group not found'))
+
+    try:
+        # Add the group's activity stream (already rendered to HTML) to the
+        # template context for the group/read.html
+        # template to retrieve later.
+        c.group_activity_stream = _action('group_activity_list_html')(
+            context, {
+                'id': c.group_dict['id'],
+                'offset': offset
+            })
+
+    except ValidationError as error:
+        base.abort(400, error.message)
+
+    return base.render(_activity_template(group_type), 
+                       extra_vars={'group_type': group_type})
+
+
 # Routing
 group.add_url_rule(u'/', methods=[u'GET'], view_func=index)
 group.add_url_rule(u'/new', methods=[u'POST'], view_func=new)
-group.add_url_rule(u'/read', methods=[u'GET'], view_func=read)
+group.add_url_rule(u'/<id>', methods=[u'GET'], view_func=read)
+group.add_url_rule(u'/activity/<id>/<offset>', methods=[u'GET'],
+                   view_func=activity)
+
 
 organization.add_url_rule(u'/', methods=[u'GET'], view_func=index)
 organization.add_url_rule(u'/new', methods=[u'POST'], view_func=new)
