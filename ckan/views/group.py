@@ -411,6 +411,38 @@ def _get_group_dict(id):
         base.abort(404, _('Group not found'))
 
 
+def _force_reindex(self, grp):
+    ''' When the group name has changed, we need to force a reindex
+    of the datasets within the group, otherwise they will stop
+    appearing on the read page for the group (as they're connected via
+    the group name)'''
+    group = model.Group.get(grp['name'])
+    for dataset in group.packages():
+        search.rebuild(dataset.name)
+
+
+def _save_edit(id, context):
+    try:
+        data_dict = clean_dict(
+            dict_fns.unflatten(tuplize_dict(parse_params(request.params))))
+        context['message'] = data_dict.get('log_message', '')
+        data_dict['id'] = id
+        context['allow_partial_update'] = True
+        group = _action('group_update')(context, data_dict)
+        if id != group['name']:
+            _force_reindex(group)
+
+        h.redirect_to('%s_read' % group['type'], id=group['name'])
+    except (NotFound, NotAuthorized), e:
+        base.abort(404, _('Group not found'))
+    except dict_fns.DataError:
+        base.abort(400, _(u'Integrity Error'))
+    except ValidationError, e:
+        errors = e.error_dict
+        error_summary = e.error_summary
+        return edit(id, data_dict, errors, error_summary)
+
+
 def new(data=None, errors=None, error_summary=None):
     print 'new'
     if data and 'type' in data:
@@ -531,7 +563,7 @@ def activity(id, offset=0):
     except ValidationError as error:
         base.abort(400, error.message)
 
-    return base.render(_activity_template(group_type), 
+    return base.render(_activity_template(group_type),
                        extra_vars={'group_type': group_type})
 
 
