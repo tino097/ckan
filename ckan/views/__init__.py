@@ -1,5 +1,6 @@
 # encoding: utf-8
 
+from datetime import datetime
 from sqlalchemy import inspect
 from ckan.common import asbool
 import six
@@ -169,6 +170,7 @@ def _identify_user_default():
     g.user = six.ensure_text(request.environ.get(u'REMOTE_USER', u''))
     if g.user:
         g.userobj = model.User.by_name(g.user)
+        g.userobj.last_active = datetime.timestamp(datetime.now())
 
         if g.userobj is None or not g.userobj.is_active():
 
@@ -187,6 +189,7 @@ def _identify_user_default():
     else:
         g.userobj = _get_user_for_apikey()
         if g.userobj is not None:
+            g.userobj.last_active = datetime.timestamp(datetime.now())
             g.user = g.userobj.name
 
 
