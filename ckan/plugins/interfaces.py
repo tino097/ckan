@@ -1612,7 +1612,15 @@ class IUserForm(Interface):
 
         ``schema`` is empty when the first plugin is called. Add a field
         with :py:func:`~ckan.logic.converters.load_plugin_extra` for every
-        value of ``plugin_extras`` that ``user_show`` should return.
+        value of ``plugin_extras`` that ``user_show`` should return. The
+        loader has to be the first validator of the field, because
+        ``ignore_missing`` drops fields that are not in the input::
+
+            def show_user_schema(self, schema):
+                schema['favourite_colour'] = [
+                    toolkit.get_validator('load_plugin_extra')('colours'),
+                ]
+                return schema
         '''
         return schema
 

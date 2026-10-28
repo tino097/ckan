@@ -3,6 +3,7 @@
 '''API functions for searching for and getting data from CKAN.'''
 from __future__ import annotations
 
+import copy
 import logging
 import json
 import socket
@@ -42,6 +43,7 @@ log = logging.getLogger('ckan.logic')
 # Ensure they are module-private so that they don't get loaded as available
 # actions in the action API.
 _validate = ckan.lib.navl.dictization_functions.validate
+_missing = ckan.lib.navl.dictization_functions.missing
 _table_dictize = ckan.lib.dictization.table_dictize
 _check_access = logic.check_access
 NotFound = logic.NotFound
@@ -1378,6 +1380,29 @@ def tag_show(context: Context, data_dict: DataDict) -> ActionResult.TagShow:
                                      include_datasets=include_datasets)
 
 
+def _load_public_plugin_extras(
+        user_dict: dict[str, Any], user_obj: model.User,
+        context: Context) -> None:
+    schema: Schema = {}
+    for plugin in plugins.PluginImplementations(plugins.IUserForm):
+        schema = plugin.show_user_schema(schema)
+    if not schema:
+        return
+
+    # no validators, so that loaders can read it whatever the key order is
+    schema['plugin_extras'] = []
+    data, errors = _validate(
+        {'plugin_extras': copy.deepcopy(user_obj.plugin_extras or {})},
+        schema, context)
+    if errors:
+        raise ValidationError(errors)
+
+    for key in schema:
+        value = data.get(key, _missing)
+        if key != 'plugin_extras' and value is not _missing:
+            user_dict[key] = value
+
+
 def user_show(context: Context, data_dict: DataDict) -> ActionResult.UserShow:
     '''Return a user account.
 
@@ -1405,7 +1430,9 @@ def user_show(context: Context, data_dict: DataDict) -> ActionResult.UserShow:
         number_created_packages (which excludes draft or private datasets
         unless it is the same user or sysadmin making the request). Excludes
         the password (hash) and reset_key. If it is the same user or a
-        sysadmin requesting, the email and apikey are included.
+        sysadmin requesting, the email and apikey are included. Plugins that
+        implement :py:class:`~ckan.plugins.interfaces.IUserForm` can add
+        values of ``plugin_extras`` to the result.
     :rtype: dictionary
 
     '''
@@ -1447,6 +1474,7 @@ def user_show(context: Context, data_dict: DataDict) -> ActionResult.UserShow:
 
     user_dict = model_dictize.user_dictize(
         user_obj, context, include_password_hash, include_plugin_extras)
+    _load_public_plugin_extras(user_dict, user_obj, context)
 
     if asbool(data_dict.get('include_datasets', False)):
         user_dict['datasets'] = []
