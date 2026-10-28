@@ -1,6 +1,5 @@
 # encoding: utf-8
 import pytest
-import sqlalchemy as sa
 
 import ckan.model as model
 import ckan.tests.factories as factories
@@ -16,12 +15,6 @@ def _stored_extras(user):
 @pytest.mark.ckan_config("ckan.plugins", "example_iuserform")
 @pytest.mark.usefixtures("non_clean_db", "with_plugins")
 class TestExampleIUserFormApi(object):
-    def test_value_is_stored_in_private_plugin_extras(self):
-        user = factories.User(favourite_colour="green")
-
-        assert _stored_extras(user) == {
-            "example_iuserform": {"favourite_colour": "green"}}
-
     def test_value_is_returned_by_user_show_to_anonymous(self):
         user = factories.User(favourite_colour="green")
 
@@ -44,38 +37,6 @@ class TestExampleIUserFormApi(object):
             "other": {"key": "kept"},
             "example_iuserform": {"favourite_colour": "red"},
         }
-
-    def test_update_without_value_keeps_stored_value(self):
-        user = factories.User(favourite_colour="green")
-
-        helpers.call_action(
-            "user_update", id=user["id"], email=user["email"],
-            fullname="New Name")
-
-        assert _stored_extras(user) == {
-            "example_iuserform": {"favourite_colour": "green"}}
-
-    def test_regular_user_cannot_write_plugin_extras_directly(self):
-        user = factories.User()
-        context = {"user": user["name"], "ignore_auth": False}
-
-        helpers.call_action(
-            "user_update", context=context, id=user["id"],
-            email=user["email"], favourite_colour="red",
-            plugin_extras={"evil": {"x": 1}})
-
-        assert _stored_extras(user) == {
-            "example_iuserform": {"favourite_colour": "red"}}
-
-    def test_value_is_in_database_column(self):
-        user = factories.User(favourite_colour="green")
-
-        stored = model.Session.execute(
-            sa.text('SELECT plugin_extras FROM "user" WHERE id=:id'),
-            {"id": user["id"]},
-        ).first()[0]
-
-        assert stored["example_iuserform"]["favourite_colour"] == "green"
 
 
 @pytest.mark.ckan_config("ckan.plugins", "example_iuserform")

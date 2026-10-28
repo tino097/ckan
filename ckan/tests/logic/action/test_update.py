@@ -2921,10 +2921,9 @@ class TestUserPluginExtraConverter(object):
             "myplugin": {"plugin_field": "new"},
         }
 
-    def test_value_is_stored_on_create(self):
+    def test_value_is_stored_and_returned_on_create(self, show_user_fields):
+        show_user_fields({"plugin_field": "myplugin"})
         context = {
-            "user": factories.Sysadmin()["name"],
-            "ignore_auth": False,
             "schema": _plugin_field_schema(logic_schema.default_user_schema),
         }
         user = helpers.call_action(
@@ -2932,6 +2931,8 @@ class TestUserPluginExtraConverter(object):
             email="new_user@example.com", password="correct123",
             plugin_field="new")
 
+        assert user["plugin_field"] == "new"
+        assert "plugin_extras" not in user
         assert self._stored(user) == {"myplugin": {"plugin_field": "new"}}
 
 
@@ -2947,18 +2948,3 @@ class TestUserUpdateReturnsPublicPluginExtras(object):
 
         assert updated["colour"] == "blue"
         assert "plugin_extras" not in updated
-
-    def test_user_create_returns_public_values(self, show_user_fields):
-        show_user_fields({"plugin_field": "myplugin"})
-        context = {
-            "schema": _plugin_field_schema(logic_schema.default_user_schema),
-        }
-
-        created = helpers.call_action(
-            "user_create", context=context, name="public_values_user",
-            email="public_values_user@example.com", password="correct123",
-            plugin_field="new")
-
-        assert created["plugin_field"] == "new"
-        assert "plugin_extras" not in created
-

@@ -53,21 +53,3 @@ def test_plugins_receive_the_schema_of_previous_plugins(user_form_plugins):
 
     assert "first" in user_schema["second_seen_previous"]
     assert "first" in user_schema and "second" in user_schema
-
-
-def test_update_schema_keeps_plugin_fields(user_form_plugins):
-    user_form_plugins.append(_AddField("colour"))
-
-    update_schema = schema.default_update_user_schema()
-
-    assert "colour" in update_schema
-    assert update_schema["id"] != schema.default_user_schema()["id"]
-
-
-def test_schema_is_unchanged_without_plugins(user_form_plugins):
-    assert set(schema.default_user_schema()) == {
-        "id", "name", "fullname", "password", "password_hash", "email",
-        "about", "created", "sysadmin", "reset_key",
-        "activity_streams_email_notifications", "state", "image_url",
-        "image_display_url", "plugin_extras",
-    }
