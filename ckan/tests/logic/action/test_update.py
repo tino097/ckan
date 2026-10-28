@@ -11,12 +11,15 @@ import sqlalchemy as sa
 import ckan.lib.app_globals as app_globals
 import ckan.lib.uploader as uploader
 import ckan.logic as logic
+import ckan.logic.converters as converters
+import ckan.logic.schema as logic_schema
 from ckan.logic.action.get import package_show as core_package_show
 import ckan.plugins as p
 import ckan.tests.factories as factories
 import ckan.tests.helpers as helpers
 from ckan import model
 from ckan.lib import files
+from ckan.lib.navl import validators
 from ckan.lib.navl.dictization_functions import DataError
 from freezegun import freeze_time
 
@@ -2839,3 +2842,95 @@ class TestPackagePluginData(object):
                 "key1": "value1"
             }
         }
+
+
+def _plugin_field_schema(base):
+    schema = base()
+    schema["plugin_field"] = [
+        validators.ignore_missing, validators.unicode_safe,
+        converters.store_plugin_extra("myplugin"),
+    ]
+    return schema
+
+
+@pytest.mark.usefixtures("non_clean_db")
+class TestUserPluginExtraConverter(object):
+    def _update(self, user, schema_func, requester=None, **data):
+        context = {
+            "user": (requester or user)["name"],
+            "ignore_auth": False,
+            "schema": _plugin_field_schema(schema_func),
+        }
+        return helpers.call_action(
+            "user_update", context=context,
+            id=user["id"], email=user["email"], **data)
+
+    def _stored(self, user):
+        model.Session.expire_all()
+        return model.User.get(user["id"]).plugin_extras
+
+    def test_value_is_merged_with_stored_plugin_extras(self):
+        user = factories.User(
+            plugin_extras={"other": {"key": "kept"}, "myplugin": {"a": 1}})
+
+        self._update(
+            user, logic_schema.default_update_user_schema, plugin_field="new")
+
+        assert self._stored(user) == {
+            "other": {"key": "kept"},
+            "myplugin": {"a": 1, "plugin_field": "new"},
+        }
+
+    def test_value_is_stored_without_prior_plugin_extras(self):
+        user = factories.User()
+
+        self._update(
+            user, logic_schema.default_update_user_schema, plugin_field="new")
+
+        assert self._stored(user) == {"myplugin": {"plugin_field": "new"}}
+
+    def test_stored_extras_untouched_when_field_not_sent(self):
+        user = factories.User(plugin_extras={"other": {"key": "kept"}})
+
+        self._update(user, logic_schema.default_update_user_schema)
+
+        assert self._stored(user) == {"other": {"key": "kept"}}
+
+    def test_non_sysadmin_cannot_replace_plugin_extras(self):
+        user = factories.User(plugin_extras={"other": {"key": "kept"}})
+
+        self._update(
+            user, logic_schema.default_update_user_schema,
+            plugin_field="new", plugin_extras={"evil": {"x": 1}})
+
+        assert self._stored(user) == {
+            "other": {"key": "kept"},
+            "myplugin": {"plugin_field": "new"},
+        }
+
+    def test_sysadmin_plugin_extras_replace_stored_value(self):
+        sysadmin = factories.Sysadmin()
+        user = factories.User(plugin_extras={"other": {"key": "gone"}})
+
+        self._update(
+            user, logic_schema.default_update_user_schema, requester=sysadmin,
+            plugin_field="new", plugin_extras={"explicit": {"x": 1}})
+
+        assert self._stored(user) == {
+            "explicit": {"x": 1},
+            "myplugin": {"plugin_field": "new"},
+        }
+
+    def test_value_is_stored_on_create(self):
+        context = {
+            "user": factories.Sysadmin()["name"],
+            "ignore_auth": False,
+            "schema": _plugin_field_schema(logic_schema.default_user_schema),
+        }
+        user = helpers.call_action(
+            "user_create", context=context, name="new_user",
+            email="new_user@example.com", password="correct123",
+            plugin_field="new")
+
+        assert self._stored(user) == {"myplugin": {"plugin_field": "new"}}
+

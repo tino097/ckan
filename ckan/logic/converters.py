@@ -10,6 +10,7 @@ import ckan.lib.navl.dictization_functions as df
 import ckan.logic.validators as validators
 from ckan.lib.navl.validators import unicode_safe
 from ckan.lib.files import make_upload
+from ckan.lib.dictization.model_save import PLUGIN_EXTRAS_UPDATES_KEY
 
 from ckan.common import _, aslist
 from ckan.types import (
@@ -323,3 +324,40 @@ def into_upload(
         msg = f"Wrong file: {err}"
         errors[key].append(msg)
         raise df.StopOnError from err
+
+
+def store_plugin_extra(plugin: str) -> DataValidator:
+    """Return a validator that stores the field in ``plugin_extras[plugin]``.
+
+    The value is merged into the stored ``plugin_extras`` when the user is
+    saved, so data of other plugins is kept.
+    """
+    def validator(key: FlattenKey, data: FlattenDataDict,
+                  errors: FlattenErrorDict, context: Context) -> Any:
+        value = data.pop(key, df.missing)
+        if value is df.missing:
+            return
+
+        updates = data.get((PLUGIN_EXTRAS_UPDATES_KEY,))
+        if not isinstance(updates, dict):
+            updates = {}
+        updates.setdefault(plugin, {})[key[-1]] = value
+        data[(PLUGIN_EXTRAS_UPDATES_KEY,)] = updates
+
+    return validator
+
+
+def load_plugin_extra(plugin: str) -> DataValidator:
+    """Return a validator that copies ``plugin_extras[plugin][field]`` to
+    the field itself.
+    """
+    def validator(key: FlattenKey, data: FlattenDataDict,
+                  errors: FlattenErrorDict, context: Context) -> Any:
+        extras = data.get(('plugin_extras',))
+        if not isinstance(extras, dict):
+            return
+        fields = extras.get(plugin) or {}
+        if key[-1] in fields:
+            data[key] = fields[key[-1]]
+
+    return validator

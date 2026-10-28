@@ -463,6 +463,30 @@ def group_dict_save(group_dict: dict[str, Any], context: Context,
     return group
 
 
+PLUGIN_EXTRAS_UPDATES_KEY = 'plugin_extras_updates'
+
+
+def _merge_plugin_extras_updates(
+        user_dict: dict[str, Any], user: Optional['model.User']) -> None:
+    """Apply per plugin values collected by ``store_plugin_extra``.
+
+    Incoming ``plugin_extras`` are only present for sysadmins, so values
+    from other callers are always merged into what is already stored.
+    """
+    updates = user_dict.pop(PLUGIN_EXTRAS_UPDATES_KEY, None)
+    if not updates:
+        return
+
+    extras = user_dict.get('plugin_extras')
+    if not isinstance(extras, dict):
+        extras = copy.deepcopy(user.plugin_extras) if user else None
+    extras = extras or {}
+
+    for plugin, fields in updates.items():
+        extras[plugin] = {**(extras.get(plugin) or {}), **fields}
+    user_dict['plugin_extras'] = extras
+
+
 def user_dict_save(
         user_dict: dict[str, Any], context: Context) -> 'model.User':
     user = context.get('user_obj')
@@ -473,6 +497,8 @@ def user_dict_save(
 
     if 'password' in user_dict and not len(user_dict['password']):
         del user_dict['password']
+
+    _merge_plugin_extras_updates(user_dict, user)
 
     user, _change = d.table_dict_save(
         user_dict,

@@ -7,6 +7,7 @@ import pytest
 import ckan.tests.factories as factories
 import ckan.logic.converters as converters
 import ckan.lib.navl.dictization_functions as df
+from ckan.lib.dictization.model_save import PLUGIN_EXTRAS_UPDATES_KEY
 
 
 def test_leading_space():
@@ -199,3 +200,43 @@ class TestParseFilesize:
         """Empty string causes an exception."""
         with pytest.raises(df.Invalid):  # noqa: PT011
             converters.parse_filesize("1PB")
+
+
+class TestPluginExtraConverters:
+    def test_load_copies_value_to_field(self):
+        key = ("myfield",)
+        data = {("plugin_extras",): {"myplugin": {"myfield": "value"}}}
+
+        converters.load_plugin_extra("myplugin")(key, data, {}, {})
+
+        assert data[key] == "value"
+
+    @pytest.mark.parametrize("extras", [
+        df.missing, None, {}, {"other": {"myfield": "value"}},
+    ])
+    def test_load_ignores_absent_value(self, extras):
+        key = ("myfield",)
+        data = {("plugin_extras",): extras}
+
+        converters.load_plugin_extra("myplugin")(key, data, {}, {})
+
+        assert key not in data
+
+    def test_store_collects_values_per_plugin(self):
+        data = {("a",): 1, ("b",): 2}
+
+        converters.store_plugin_extra("plugin1")(("a",), data, {}, {})
+        converters.store_plugin_extra("plugin2")(("b",), data, {}, {})
+
+        assert data == {
+            (PLUGIN_EXTRAS_UPDATES_KEY,): {
+                "plugin1": {"a": 1}, "plugin2": {"b": 2}},
+        }
+
+    def test_store_skips_missing_value(self):
+        data = {("a",): df.missing}
+
+        converters.store_plugin_extra("plugin1")(("a",), data, {}, {})
+
+        assert (PLUGIN_EXTRAS_UPDATES_KEY,) not in data
+
