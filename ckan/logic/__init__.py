@@ -2,6 +2,7 @@
 from __future__ import annotations
 from contextlib import contextmanager
 
+import copy
 import functools
 import logging
 import re
@@ -616,6 +617,30 @@ def load_actions() -> None:
             # type_ignore_reason: custom attribute
             fn.side_effect_free = True  # type: ignore
         _actions[action_name] = fn
+
+
+def load_public_plugin_extras(
+        user_dict: dict[str, Any], user_obj: model.User,
+        context: Context) -> None:
+    """Add the values that ``IUserForm`` plugins expose to ``user_dict``."""
+    schema: Schema = {}
+    for plugin in p.PluginImplementations(p.IUserForm):
+        schema = plugin.show_user_schema(schema)
+    if not schema:
+        return
+
+    # no validators, so that loaders can read it whatever the key order is
+    schema['plugin_extras'] = []
+    data, errors = df.validate(
+        {'plugin_extras': copy.deepcopy(user_obj.plugin_extras or {})},
+        schema, context)
+    if errors:
+        raise ValidationError(errors)
+
+    for key in schema:
+        value = data.get(key, df.missing)
+        if key != 'plugin_extras' and value is not df.missing:
+            user_dict[key] = value
 
 
 @overload

@@ -2934,3 +2934,31 @@ class TestUserPluginExtraConverter(object):
 
         assert self._stored(user) == {"myplugin": {"plugin_field": "new"}}
 
+
+@pytest.mark.usefixtures("non_clean_db")
+class TestUserUpdateReturnsPublicPluginExtras(object):
+    def test_user_update_returns_public_values(self, show_user_fields):
+        user = factories.User(plugin_extras={"myplugin": {"colour": "blue"}})
+        show_user_fields({"colour": "myplugin"})
+
+        updated = helpers.call_action(
+            "user_update", id=user["id"], email=user["email"],
+            fullname="New name")
+
+        assert updated["colour"] == "blue"
+        assert "plugin_extras" not in updated
+
+    def test_user_create_returns_public_values(self, show_user_fields):
+        show_user_fields({"plugin_field": "myplugin"})
+        context = {
+            "schema": _plugin_field_schema(logic_schema.default_user_schema),
+        }
+
+        created = helpers.call_action(
+            "user_create", context=context, name="public_values_user",
+            email="public_values_user@example.com", password="correct123",
+            plugin_field="new")
+
+        assert created["plugin_field"] == "new"
+        assert "plugin_extras" not in created
+

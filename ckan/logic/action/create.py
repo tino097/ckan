@@ -999,6 +999,7 @@ def user_create(context: Context,
         user, user_dictize_context,
         include_plugin_extras=include_plugin_extras
     )
+    logic.load_public_plugin_extras(user_dict, user, context)
 
     context['user_obj'] = user
     context['id'] = user.id

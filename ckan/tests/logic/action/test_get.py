@@ -2,14 +2,11 @@
 
 import datetime
 import re
-from unittest import mock
 
 import pytest
 
 from ckan import model
 import ckan.logic as logic
-import ckan.logic.converters as converters
-import ckan.plugins as p
 import ckan.logic.schema as schema
 import ckan.tests.factories as factories
 import ckan.tests.helpers as helpers
@@ -3644,32 +3641,6 @@ class TestPackagePluginData(object):
         assert "plugin_data" not in pkg_dict
 
 
-class _ShowFields:
-    def __init__(self, fields, validators=()):
-        self.fields = fields
-        self.validators = list(validators)
-
-    def show_user_schema(self, user_schema):
-        for field, plugin in self.fields.items():
-            user_schema[field] = [
-                converters.load_plugin_extra(plugin), *self.validators]
-        return user_schema
-
-
-@pytest.fixture
-def show_user_plugins():
-    implementations = []
-    real = p.PluginImplementations
-
-    def _implementations(interface):
-        if interface is p.IUserForm:
-            return implementations
-        return real(interface)
-
-    with mock.patch.object(p, "PluginImplementations", _implementations):
-        yield implementations
-
-
 @pytest.mark.usefixtures("non_clean_db")
 class TestUserShowPublicPluginExtras(object):
     def _user(self):
@@ -3681,9 +3652,9 @@ class TestUserShowPublicPluginExtras(object):
 
     @pytest.mark.parametrize("field", ["colour", "zzz_colour"])
     def test_declared_value_is_returned_to_anyone(
-            self, show_user_plugins, field):
+            self, show_user_fields, field):
         user = self._user()
-        show_user_plugins.append(_ShowFields({field: "myplugin"}))
+        show_user_fields({field: "myplugin"})
 
         shown = helpers.call_action(
             "user_show", context={"user": "", "ignore_auth": False},
@@ -3692,9 +3663,9 @@ class TestUserShowPublicPluginExtras(object):
         assert shown[field] == "blue"
 
     def test_undeclared_values_and_plugin_extras_are_not_returned(
-            self, show_user_plugins):
+            self, show_user_fields):
         user = self._user()
-        show_user_plugins.append(_ShowFields({"colour": "myplugin"}))
+        show_user_fields({"colour": "myplugin"})
 
         shown = helpers.call_action(
             "user_show", context={"user": "", "ignore_auth": False},
@@ -3705,10 +3676,10 @@ class TestUserShowPublicPluginExtras(object):
         assert "plugin_extras" not in shown
 
     def test_sysadmin_still_gets_plugin_extras_on_request(
-            self, show_user_plugins):
+            self, show_user_fields):
         user = self._user()
         sysadmin = factories.Sysadmin()
-        show_user_plugins.append(_ShowFields({"colour": "myplugin"}))
+        show_user_fields({"colour": "myplugin"})
 
         shown = helpers.call_action(
             "user_show",
@@ -3718,22 +3689,21 @@ class TestUserShowPublicPluginExtras(object):
         assert shown["colour"] == "blue"
         assert shown["plugin_extras"]["myplugin"]["secret"] == "hidden"
 
-    def test_field_is_absent_when_user_has_no_value(self, show_user_plugins):
+    def test_field_is_absent_when_user_has_no_value(self, show_user_fields):
         user = factories.User()
-        show_user_plugins.append(_ShowFields({"colour": "myplugin"}))
+        show_user_fields({"colour": "myplugin"})
 
         shown = helpers.call_action("user_show", id=user["id"])
 
         assert "colour" not in shown
 
-    def test_validation_error_is_raised(self, show_user_plugins):
+    def test_validation_error_is_raised(self, show_user_fields):
         user = self._user()
 
         def always_invalid(value):
             raise Invalid("invalid")
 
-        show_user_plugins.append(
-            _ShowFields({"colour": "myplugin"}, [always_invalid]))
+        show_user_fields({"colour": "myplugin"}, [always_invalid])
 
         with pytest.raises(logic.ValidationError):
             helpers.call_action("user_show", id=user["id"])
