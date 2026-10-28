@@ -2912,7 +2912,7 @@ class TestUserPluginExtraConverter(object):
         sysadmin = factories.Sysadmin()
         user = factories.User(plugin_extras={"other": {"key": "gone"}})
 
-        self._update(
+        updated = self._update(
             user, logic_schema.default_update_user_schema, requester=sysadmin,
             plugin_field="new", plugin_extras={"explicit": {"x": 1}})
 
@@ -2920,6 +2920,31 @@ class TestUserPluginExtraConverter(object):
             "explicit": {"x": 1},
             "myplugin": {"plugin_field": "new"},
         }
+        assert updated["plugin_extras"] == self._stored(user)
+
+    def test_sysadmin_update_response_has_no_unrequested_plugin_extras(self):
+        sysadmin = factories.Sysadmin()
+        user = factories.User()
+
+        updated = self._update(
+            user, logic_schema.default_update_user_schema, requester=sysadmin,
+            plugin_field="new")
+
+        assert "plugin_extras" not in updated
+
+    def test_sysadmin_create_response_has_no_unrequested_plugin_extras(self):
+        context = {
+            "user": factories.Sysadmin()["name"],
+            "ignore_auth": False,
+            "schema": _plugin_field_schema(logic_schema.default_user_schema),
+        }
+
+        created = helpers.call_action(
+            "user_create", context=context, name="sysadmin_made_user",
+            email="sysadmin_made_user@example.com", password="correct123",
+            plugin_field="new")
+
+        assert "plugin_extras" not in created
 
     def test_value_is_stored_and_returned_on_create(self, show_user_fields):
         show_user_fields({"plugin_field": "myplugin"})

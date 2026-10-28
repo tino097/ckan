@@ -955,6 +955,7 @@ def user_update(context: Context, data_dict: DataDict) -> ActionResult.UserUpdat
     if 'password_hash' in data:
         data['_password'] = data.pop('password_hash')
 
+    plugin_extras_sent = 'plugin_extras' in data
     user = model_save.user_dict_save(data, context)
 
     upload.upload(uploader.get_max_image_size())
@@ -966,7 +967,7 @@ def user_update(context: Context, data_dict: DataDict) -> ActionResult.UserUpdat
     author_obj = model.User.get(context.get('user'))
     include_plugin_extras = False
     if author_obj:
-        include_plugin_extras = author_obj.sysadmin and 'plugin_extras' in data
+        include_plugin_extras = author_obj.sysadmin and plugin_extras_sent
     user_dict = model_dictize.user_dictize(
         user, context, include_plugin_extras=include_plugin_extras)
     logic.load_public_plugin_extras(user_dict, user, context)
