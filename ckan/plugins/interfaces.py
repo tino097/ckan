@@ -61,6 +61,7 @@ __all__ = [
     "IResourceView",
     "IResourceController",
     "IGroupForm",
+    "IUserForm",
     "ITagController",
     "ITemplateHelpers",
     "IFacets",
@@ -1573,6 +1574,47 @@ class IGroupForm(Interface):
         return blueprint
 
     # End of hooks ############################################################
+
+
+class IUserForm(Interface):
+    u'''
+    Add fields to the user schemas.
+
+    Every implementation receives the schema built so far and returns it, so
+    several plugins can each add their own fields. Store a field in the
+    private ``plugin_extras`` of the user with
+    :py:func:`~ckan.logic.converters.store_plugin_extra` and expose it with
+    :py:func:`~ckan.logic.converters.load_plugin_extra`.
+
+    The schemas of ``user_create`` and ``user_update``, and the ones used by
+    the registration and edit forms, are all built from the schema returned
+    by :py:meth:`user_schema`. ``user_update`` replaces the validators of
+    ``id``, ``name`` and ``password`` after the plugins ran.
+    '''
+
+    def user_schema(self, schema: Schema) -> Schema:
+        u'''Return the user schema with the fields of this plugin added.
+
+        For example::
+
+            def user_schema(self, schema):
+                schema['favourite_colour'] = [
+                    toolkit.get_validator('ignore_missing'),
+                    toolkit.get_validator('unicode_safe'),
+                    toolkit.get_validator('store_plugin_extra')('colours'),
+                ]
+                return schema
+        '''
+        return schema
+
+    def show_user_schema(self, schema: Schema) -> Schema:
+        u'''Return the schema that makes private values public.
+
+        ``schema`` is empty when the first plugin is called. Add a field
+        with :py:func:`~ckan.logic.converters.load_plugin_extra` for every
+        value of ``plugin_extras`` that ``user_show`` should return.
+        '''
+        return schema
 
 
 class IFacets(Interface):

@@ -450,7 +450,7 @@ def default_user_schema(
         empty_if_not_sysadmin: Validator,
         uuid_validator: Validator, user_id_does_not_exist: Validator,
         json_object: Validator, limit_sysadmin_update: Validator) -> Schema:
-    return {
+    schema: Schema = {
         'id': [ignore_missing, empty_if_not_sysadmin, uuid_validator,
                user_id_does_not_exist, unicode_safe],
         'name': [
@@ -473,6 +473,9 @@ def default_user_schema(
         'image_display_url': [ignore_missing, unicode_safe],
         'plugin_extras': [ignore_missing, json_object, ignore_not_sysadmin],
     }
+    for plugin in plugins.PluginImplementations(plugins.IUserForm):
+        schema = plugin.user_schema(schema)
+    return schema
 
 
 @validator_args
