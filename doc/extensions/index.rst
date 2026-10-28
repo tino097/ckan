@@ -36,6 +36,7 @@ features by developing your own CKAN extensions.
    testing-extensions
    best-practices
    adding-custom-fields
+   adding-custom-user-fields
    plugin-interfaces
    plugins-toolkit
    validators
