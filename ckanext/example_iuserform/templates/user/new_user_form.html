@@ -1,0 +1,6 @@
+{% ckan_extends %}
+
+{% block extra_fields %}
+  {{ super() }}
+  {{ form.input("favourite_colour", id="field-favourite-colour", label=_("Favourite colour"), value=data.favourite_colour, error=errors.favourite_colour, classes=["control-medium"]) }}
+{% endblock %}

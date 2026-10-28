@@ -1,0 +1,11 @@
+{% ckan_extends %}
+
+{% block user_about %}
+  {{ super() }}
+  {% if user.favourite_colour %}
+    <dl>
+      <dt>{{ _("Favourite colour") }}</dt>
+      <dd class="favourite-colour">{{ user.favourite_colour }}</dd>
+    </dl>
+  {% endif %}
+{% endblock %}
